@@ -1,0 +1,5 @@
+.venv/
+songs/
+__pycache__/
+*.pyc
+*.zip
