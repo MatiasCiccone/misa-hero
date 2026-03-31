@@ -3,3 +3,5 @@ songs/
 __pycache__/
 *.pyc
 *.zip
+to_download.txt
+.claude

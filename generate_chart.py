@@ -228,50 +228,62 @@ def generate_chart(audio_path, output_path, song_name="Unknown", artist="Unknown
     easy_frets = assign_frets_by_pitch(easy_pitches, num_frets=3)
     easy_sustains = compute_sustain_durations(easy_times, bpm, min_gap_for_sustain=0.5)
 
-    def write_sp(lines):
+    def build_section(note_entries):
+        """Merge note entries with star power, sorted by tick."""
+        entries = list(note_entries)
         for sp_tick, sp_dur in sp_phrases:
-            lines.append(f"  {sp_tick} = S 2 {sp_dur}")
+            entries.append((sp_tick, f"S 2 {sp_dur}"))
+        entries.sort(key=lambda e: e[0])
+        return [f"  {tick} = {val}" for tick, val in entries]
 
-    # Write Expert — chords + sustains + star power
-    lines.append("[ExpertSingle]")
-    lines.append("{")
+    # Build Expert — chords + sustains + star power
+    expert_entries = []
     for i, t in enumerate(onset_times):
         tick = time_to_tick(t, bpm)
         dur = expert_sustains[i]
         for fret in expert_chords[i]:
-            lines.append(f"  {tick} = N {fret} {dur}")
-    write_sp(lines)
+            expert_entries.append((tick, f"N {fret} {dur}"))
+
+    lines.append("[ExpertSingle]")
+    lines.append("{")
+    lines.extend(build_section(expert_entries))
     lines.append("}")
 
-    # Write Hard — chords (less aggressive) + sustains + star power
-    lines.append("[HardSingle]")
-    lines.append("{")
+    # Build Hard — chords (less aggressive) + sustains + star power
+    hard_entries = []
     for i, t in enumerate(hard_times):
         tick = time_to_tick(t, bpm)
         dur = hard_sustains[i]
         for fret in hard_chords[i]:
-            lines.append(f"  {tick} = N {fret} {dur}")
-    write_sp(lines)
+            hard_entries.append((tick, f"N {fret} {dur}"))
+
+    lines.append("[HardSingle]")
+    lines.append("{")
+    lines.extend(build_section(hard_entries))
     lines.append("}")
 
-    # Write Medium — single notes + sustains + star power
-    lines.append("[MediumSingle]")
-    lines.append("{")
+    # Build Medium — single notes + sustains + star power
+    medium_entries = []
     for i, t in enumerate(medium_times):
         tick = time_to_tick(t, bpm)
         dur = medium_sustains[i]
-        lines.append(f"  {tick} = N {medium_frets[i]} {dur}")
-    write_sp(lines)
+        medium_entries.append((tick, f"N {medium_frets[i]} {dur}"))
+
+    lines.append("[MediumSingle]")
+    lines.append("{")
+    lines.extend(build_section(medium_entries))
     lines.append("}")
 
-    # Write Easy — single notes + sustains + star power
-    lines.append("[EasySingle]")
-    lines.append("{")
+    # Build Easy — single notes + sustains + star power
+    easy_entries = []
     for i, t in enumerate(easy_times):
         tick = time_to_tick(t, bpm)
         dur = easy_sustains[i]
-        lines.append(f"  {tick} = N {easy_frets[i]} {dur}")
-    write_sp(lines)
+        easy_entries.append((tick, f"N {easy_frets[i]} {dur}"))
+
+    lines.append("[EasySingle]")
+    lines.append("{")
+    lines.extend(build_section(easy_entries))
     lines.append("}")
 
     chart_content = "\n".join(lines)
@@ -332,15 +344,32 @@ def parse_song_info(filename):
     return song_name, artist
 
 
-def process_song_folder(song_dir):
+def process_song_folder(song_dir, chart_only=False):
     """Process a single song folder: extract audio, generate chart, convert video."""
     mp4_files = glob.glob(os.path.join(song_dir, "*.mp4"))
-    if not mp4_files:
-        return False
 
     audio_path = os.path.join(song_dir, "song.ogg")
     chart_path = os.path.join(song_dir, "notes.chart")
     webm_path = os.path.join(song_dir, "video.webm")
+
+    if chart_only:
+        if not os.path.exists(audio_path):
+            print(f"  No song.ogg found, skipping (run without --chart-only first).")
+            return False
+        mp4_path = mp4_files[0] if mp4_files else None
+        if mp4_path:
+            song_name, artist = parse_song_info(os.path.basename(mp4_path))
+        else:
+            song_name = os.path.basename(song_dir)
+            artist = "Unknown"
+        print(f"  Song: {song_name}")
+        print(f"  Artist: {artist}")
+        bpm = generate_chart(audio_path, chart_path, song_name, artist)
+        generate_song_ini(song_dir, song_name, artist, bpm)
+        return True
+
+    if not mp4_files:
+        return False
 
     # Skip if already processed
     if os.path.exists(audio_path) and os.path.exists(chart_path):
@@ -367,23 +396,47 @@ def process_song_folder(song_dir):
 
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Generate Clone Hero charts from video files")
+    parser.add_argument(
+        "dirs", nargs="*",
+        help="One or more song directories to process. If omitted, processes all songs in songs/.",
+    )
+    parser.add_argument(
+        "--chart-only", "-c", action="store_true",
+        help="Only regenerate chart and song.ini from existing song.ogg (skip video/audio extraction).",
+    )
+    args = parser.parse_args()
+
+    if args.dirs:
+        song_dirs = [os.path.abspath(d) for d in args.dirs]
+    else:
+        song_dirs = [
+            os.path.join(SONGS_DIR, name)
+            for name in sorted(os.listdir(SONGS_DIR))
+            if os.path.isdir(os.path.join(SONGS_DIR, name)) and not name.startswith(".")
+        ]
+
     processed = 0
     skipped = 0
 
-    for name in sorted(os.listdir(SONGS_DIR)):
-        song_dir = os.path.join(SONGS_DIR, name)
-        if not os.path.isdir(song_dir) or name.startswith("."):
+    for song_dir in song_dirs:
+        if not os.path.isdir(song_dir):
+            print(f"WARNING: {song_dir} is not a directory, skipping.")
+            skipped += 1
             continue
 
         mp4_files = glob.glob(os.path.join(song_dir, "*.mp4"))
-        if not mp4_files:
+        if not mp4_files and not args.chart_only:
             continue
 
+        name = os.path.basename(song_dir)
         print(f"\n{'='*60}")
         print(f"Processing: {name}")
         print(f"{'='*60}")
 
-        if process_song_folder(song_dir):
+        if process_song_folder(song_dir, chart_only=args.chart_only):
             processed += 1
         else:
             skipped += 1

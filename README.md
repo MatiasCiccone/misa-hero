@@ -17,6 +17,28 @@ Don't want to generate your own? Download ready-to-play song packs from the [Rel
 2. Extract into your Clone Hero `Songs/` directory
 3. Open Clone Hero, go to **Settings > General**, and hit **Scan Songs**
 
+## Song Index (17 tracks)
+
+| # | Song | Artist |
+|---|------| ------ |
+| 1 | chadmanzio, el gordo realpolitik | Carajo |
+| 2 | cheri cheri lady (giga slowed and reverb) | Carajo |
+| 3 | cronicas del gordo matrix | Carajo |
+| 4 | dear mamma, i am ending the ccp | Miles Guo |
+| 5 | grandes verdades reales chequeadas de la humanidad | Carajo |
+| 6 | kalina, el informe de maximo a nestor | Carajo |
+| 7 | las tres anclas | Carajo |
+| 8 | mari marilu | Carajo |
+| 9 | me chupa la pija la opinion de los kukas (cumbia) | Carajo |
+| 10 | me chupa la pija la opinion de los kukas (halloween) | Carajo |
+| 11 | me chupa la pija la opinion de los kukas (oficial) | Carajo |
+| 12 | me chupa la pija la opinion de los kukas (og) | Carajo |
+| 13 | me chupa la pija la opinion de los kukas (remake mil capas) | Carajo |
+| 14 | morcilla con baculo (og) | Carajo |
+| 15 | morcilla con baculo (remastered) | Carajo |
+| 16 | taking down the ccp, fight for hong kong | Miles Guo |
+| 17 | the opinion of the democrats sucks my dick | Carajo |
+
 ## Requirements
 
 - [Clone Hero](https://clonehero.net/)
@@ -49,7 +71,7 @@ Create a folder for your song inside `songs/` and place the `.mp4` inside:
 misa-hero/
   songs/
     my-song/
-      Artist - Song Title (1080p, h264).mp4
+      Artist - Song Title.mp4
 ```
 
 Name your files as `Artist - Song Title.mp4` for best metadata detection.
@@ -57,10 +79,20 @@ Name your files as `Artist - Song Title.mp4` for best metadata detection.
 ### 2. Generate charts
 
 ```bash
+# Process all songs
 python generate_chart.py
+
+# Process specific song(s)
+python generate_chart.py "songs/Artist - Song Title" "songs/Another Song"
+
+# Regenerate only charts (skip audio/video extraction)
+python generate_chart.py --chart-only
+python generate_chart.py -c "songs/Artist - Song Title"
 ```
 
-The script automatically scans all subfolders in `songs/` for `.mp4` files and for each one:
+When called without arguments, the script scans all subfolders in `songs/`. When given one or more paths, it only processes those directories. Use `--chart-only` / `-c` to regenerate just the `notes.chart` and `song.ini` from existing `song.ogg` files without re-extracting audio or converting video.
+
+For each song folder with an `.mp4` file, the script:
 - Extracts audio into `song.ogg`
 - Converts video to `video.webm` for Clone Hero background playback
 - Separates harmonic content (filters out drums) for guitar-focused onset detection
